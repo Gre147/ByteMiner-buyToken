@@ -1,0 +1,241 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TON Payment System | ByteMiner</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@1.0.0-beta.5/dist/tonconnect-ui.min.js"></script>
+  <script src="https://unpkg.com/tonweb@0.0.58/dist/tonweb.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    :root {
+      --primary: #00c3ff;
+      --accent: #6610f2;
+      --bg: #0a0f2c;
+      --card: #12193c;
+      --text: #ffffff;
+      --border: #2c3558;
+    }
+    
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    
+    .container {
+      background: var(--card);
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0, 195, 255, 0.2);
+      text-align: center;
+      width: 360px;
+    }
+    
+    h2 {
+      color: var(--primary);
+      margin-bottom: 10px;
+    }
+    
+    .note {
+      color: #ffcc00;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    
+    #usernameInput {
+      background: #0c1333;
+      border: 1px solid var(--border);
+      padding: 12px;
+      border-radius: 6px;
+      width: 100%;
+      color: var(--text);
+      font-size: 15px;
+      margin-bottom: 20px;
+      outline: none;
+    }
+    
+    #ton-connect {
+      margin-bottom: 20px;
+    }
+    
+    button {
+      padding: 12px 20px;
+      font-weight: 600;
+      font-size: 15px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: 0.2s ease;
+      margin: 10px 5px;
+      width: 100%;
+    }
+    
+    .connect {
+      background-color: var(--primary);
+      color: var(--text);
+      box-shadow: 0 0 10px rgba(0, 195, 255, 0.4);
+    }
+    
+    .connect:hover {
+      background-color: #00a3e0;
+    }
+    
+    .transact {
+      background-color: var(--accent);
+      color: var(--text);
+      box-shadow: 0 0 10px rgba(102, 16, 242, 0.4);
+    }
+    
+    .transact:hover {
+      background-color: #520dc2;
+    }
+    
+    .notification {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      background-color: #ffcc00;
+      color: #000;
+      font-size: 14px;
+      padding: 15px 20px;
+      border-radius: 6px;
+      box-shadow: 0 0 10px rgba(255, 204, 0, 0.3);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 999;
+    }
+    
+    .notification .close {
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      color: #000;
+    }
+    
+    @media(max-width: 480px) {
+      .container {
+        width: 90%;
+        padding: 30px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h2><i class="fas fa-coins"></i> Buy ByteTokens</h2>
+    <div class="note">💡 2 TON = 5000 BT<br>Username must start with <strong>@</strong></div>
+    <div id="ton-connect"></div>
+    <input type="text" id="usernameInput" placeholder="@username" />
+    <button id="connectWalletBtn" class="connect">Connect Wallet</button>
+    <button id="sendTransactionBtn" class="transact">Pay 2 TON</button>
+  </div>
+  
+  <div id="wallet-tip" class="notification">
+    ⚠️ If the payment button is not working or any error is occurring, disconnect and reconnect your wallet.
+    <button class="close" onclick="document.getElementById('wallet-tip').style.display='none'">&times;</button>
+  </div>
+  
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC_0QMd3amm6IodemyC95JLivzsTCFbjQA",
+      authDomain: "byteminer-3d7fc.firebaseapp.com",
+      projectId: "byteminer-3d7fc",
+      storageBucket: "byteminer-3d7fc.appspot.com",
+      messagingSenderId: "861696417850",
+      appId: "1:861696417850:web:23c4542223bf5191b1d503",
+      measurementId: "G-YZ2ML6ZJFR",
+      databaseURL: "https://byteminer-3d7fc-default-rtdb.firebaseio.com/"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    
+    let isWalletConnected = false;
+    let tonConnectUI = null;
+    
+    document.addEventListener("DOMContentLoaded", async function() {
+      tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+        manifestUrl: 'https://gre147.github.io/ByteMiner-buyToken/tonconnect-manifest.json',
+        buttonRootId: 'ton-connect'
+      });
+      
+      tonConnectUI.uiOptions = {
+        twaReturnUrl: 'https://byteminer.rf.gd/createAccount.html'
+      };
+    });
+    
+    async function connectWallet() {
+      if (isWalletConnected) return;
+      try {
+        const connectedWallet = await tonConnectUI.connectWallet();
+        if (connectedWallet) {
+          isWalletConnected = true;
+          alert("✅ Wallet connected!");
+        }
+      } catch (error) {
+        console.error("Wallet connection failed:", error);
+        alert("Wallet connection failed.");
+      }
+    }
+    
+    async function sendTonTransaction() {
+      const rawInput = document.getElementById("usernameInput").value.trim();
+      if (!rawInput || !rawInput.startsWith("@")) {
+        return alert("Please enter a valid username starting with '@'");
+      }
+      
+      const username = rawInput.substring(1);
+      
+      if (!isWalletConnected) return alert("Please connect your wallet first.");
+      
+      const transaction = {
+        validUntil: Math.floor(Date.now() / 1000) + 60,
+        messages: [{
+          address: "0QBOn1k--2ycWUFsIjjjDR4jBW2R3HmUj4qlFjcIkl47LArh",
+          amount: "2000000000"
+        }]
+      };
+      
+      try {
+        await tonConnectUI.sendTransaction(transaction);
+        alert("✅ Transaction sent. Updating your ByteTokens...");
+        
+        const userRef = db.ref(`byteUsers/${username}/coin`);
+        userRef.transaction((current) => {
+          return (parseFloat(current) || 0) + 5000;
+        }, (error, committed, snapshot) => {
+          if (error) {
+            console.error("Transaction failed:", error);
+            alert("❌ Failed to update coin balance.");
+          } else if (!committed) {
+            alert("❌ Transaction was not committed.");
+          } else {
+            alert(`🎉 5000 ByteTokens added to ${rawInput}`);
+          }
+        });
+      } catch (e) {
+        console.error("TON transaction error:", e);
+        alert("TON payment failed.");
+      }
+    }
+    
+    document.getElementById("connectWalletBtn").addEventListener("click", connectWallet);
+    document.getElementById("sendTransactionBtn").addEventListener("click", sendTonTransaction);
+  </script>
+</body>
+
